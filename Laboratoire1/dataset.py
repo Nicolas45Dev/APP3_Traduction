@@ -1,7 +1,9 @@
 # GRO722 Laboratoire 1
 # Auteurs: Jean-Samuel Lauzon et Jonathan Vincent
 # Hiver 2021
+
 import torch
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 import pickle
@@ -16,7 +18,7 @@ class SignauxDataset(Dataset):
 
         # ------------------------ Laboratoire 1 - Question 1 - Début de la section à compléter ----------------------------
         
-        return 0
+        return len(self.data)
 
         # ---------------------- Laboratoire 1 - Question 1 - Fin de la section à compléter --------------------------------
 
@@ -24,7 +26,8 @@ class SignauxDataset(Dataset):
 
         # ------------------------ Laboratoire 1 - Question 1 - Début de la section à compléter ----------------------------
         
-        return 0
+        return torch.tensor(self.data[idx][0]), torch.tensor(self.data[idx][1])
+
 
         # ---------------------- Laboratoire 1 - Question 1 - Fin de la section à compléter --------------------------------
     

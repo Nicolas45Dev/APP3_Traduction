@@ -19,10 +19,10 @@ if __name__ =="__main__":
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = True            # Forcer l'utilisation du CPU (si un GPU est disponible)
-    training = True             # Faire l'entrainement sur l'ensemble de donnees
+    training = False             # Faire l'entrainement sur l'ensemble de donnees
     learning_curves = True      # Visualiser les courbes d'apprentissage pendant l'entrainement
     test_tagging = False         # Visualiser l'annotation sur des echantillons de validation
-    test_generation = False     # Visualiser la generation sur des echantillons de validation
+    test_generation = True     # Visualiser la generation sur des echantillons de validation
 
     batch_size = 10             # Taille des lots
     n_epochs = 50               # Nombre d'iteration sur l'ensemble de donnees
@@ -62,7 +62,7 @@ if __name__ =="__main__":
     print('\n')
 
     # Instanciation du model
-    model = Model(n_hidden,  n_layers=n_layers)
+    model = Model(n_hidden,  n_layers=n_layers, type="gru")
     model = model.to(device)
 
     # Afficher le résumé du model
@@ -88,10 +88,19 @@ if __name__ =="__main__":
             running_loss_train = 0
             model.train()
             for batch_idx, data in enumerate(dataload_train):
+                h=None
                 in_seq, target_seq = [obj.to(device).float() for obj in data]
 
+                in_seq = in_seq[:, :, None]
+                target_seq = target_seq[:,:, None]
                 # ---------------------- Laboratoire 1 - Question 3 - Début de la section à compléter ------------------
+                optimizer.zero_grad()
+                output, h = model(in_seq)
+                loss = criterion(output, target_seq)
+                loss.backward()
+                optimizer.step()
 
+                running_loss_train += loss.item()
                 
                 # ---------------------- Laboratoire 1 - Question 3 - Fin de la section à compléter ------------------
             
@@ -106,10 +115,12 @@ if __name__ =="__main__":
             model.eval()
             for data in dataload_val:
                 in_seq, target_seq = [obj.to(device).float() for obj in data]
-
+                in_seq = in_seq[:, :, None]
+                target_seq = target_seq[:, :, None]
                 # ---------------------- Laboratoire 1 - Question 3 - Début de la section à compléter ------------------
-                
-
+                output, h = model(in_seq)
+                loss = criterion(output, target_seq)
+                running_loss_val += loss.item()
                 # ---------------------- Laboratoire 1 - Question 3 - Fin de la section à compléter ------------------
 
             print('\nValidation - Average loss: {:.4f}'.format(running_loss_val/len(dataload_val)))
@@ -124,7 +135,7 @@ if __name__ =="__main__":
                 ax.plot(val_loss, label='validation loss')
                 ax.legend()
                 plt.draw()
-                plt.pause(0.01)
+                # plt.pause(0.01)
             
             # Enregistrer les poids
             if running_loss_val < best_val_loss:
@@ -145,13 +156,15 @@ if __name__ =="__main__":
         for num in range(10):
             # Extraction d'une séquence du dataset de validation
             input_sequence, target_sequence = dataset_val[np.random.randint(0,len(dataset_val))]
-
+            input_sequence = input_sequence[:,None].to(torch.float32)
             # Initialisation de la prédiction de sortie
             prediction_sequence = np.zeros(len(input_sequence))
 
 
             # ---------------------- Laboratoire 1 - Question 4 - Début de la section à compléter ------------------
-            
+
+            output, h = model(input_sequence)
+            prediction_sequence = output.squeeze().detach().numpy()
             
 
             # ---------------------- Laboratoire 1 - Question 4 - Fin de la section à compléter ------------------
@@ -172,19 +185,21 @@ if __name__ =="__main__":
             input_sequence, target_sequence = dataset_val[np.random.randint(0,len(dataset_val))]
 
             # Calcul du nombre de prédictions à générer
-            usable_input_sequence_len = len(input_sequence)>>1
-            nb_predictions_to_generate = len(input_sequence)-usable_input_sequence_len
+            usable_input_sequence_len = len(input_sequence) >> 1
+            nb_predictions_to_generate = len(input_sequence) - usable_input_sequence_len
 
             # Initialisation de la prédiction de sortie
             prediction_sequence = np.zeros(nb_predictions_to_generate)
 
+            input_sequence_prediction = input_sequence[:usable_input_sequence_len, None].to(torch.float32)
 
-            # ---------------------- Laboratoire 1 - Question 5 - Début de la section à compléter ------------------
-        
+            output, h = model(input_sequence_prediction)
 
-
-            # ---------------------- Laboratoire 1 - Question 5 - Fin de la section à compléter ------------------
-
+            output_pred = output[-1]
+            output_pred = output_pred[:,None]
+            for i in range(nb_predictions_to_generate):
+                output_pred, h = model(output_pred, h)
+                prediction_sequence[i] = output_pred.squeeze().detach().numpy()
 
             prediction_t = [i+usable_input_sequence_len for i in range(nb_predictions_to_generate)]
             plt.plot(target_sequence)
