@@ -72,14 +72,16 @@ class Fr_En(Dataset):
         
 
         # ---------------------- Laboratoire 2 - Question 2 - Début de la section à compléter ------------------
-        self.max_len['fr'] = 0
-        self.max_len['en'] = 0
+        self.max_len['fr'] = max([(len(mot)) for mot in data['fr'].values()]) + 1
+        self.max_len['en'] = max([(len(mot)) for mot in data['en'].values()]) + 1
 
-
+        # Ajout du padding pour les phrases francaises et anglaises
+        data['fr'] = {k: v + [self.stop_symbol] + [self.pad_symbol] * (self.max_len['fr'] - len(v) - 1) for k,v in data['fr'].items()}
+        data['en'] = {k: v + [self.stop_symbol] + [self.pad_symbol] * (self.max_len['en'] - len(v) - 1) for k,v in data['en'].items()}
         # ---------------------- Laboratoire 2 - Question 2 - Fin de la section à compléter ------------------
 
 
-        # Assignation des données du dataset et de la taille du ditcionnaire       
+        # Assignation des données du dataset et de la taille du dictionnaire
         self.data = data
         self.dict_size = {'fr':len(self.int2symb['fr']), 'en':len(self.int2symb['en'])}
 

@@ -1,11 +1,15 @@
 # GRO722 Laboratoire 2
 # Auteur: Jean-Samuel Lauzon et  Jonathan Vincent
 # Hivers 2021
+from base64 import encode
 
 import torch
 from torch import nn
 import numpy as np
 import matplotlib.pyplot as plt
+from torch.nn.functional import embedding
+from triton.ops import attention
+
 
 class Seq2seq(nn.Module):
     def __init__(self, n_hidden, n_layers, int2symb, symb2int, dict_size, device, max_len):
@@ -23,7 +27,7 @@ class Seq2seq(nn.Module):
         # Définition des couches du rnn
         self.fr_embedding = nn.Embedding(self.dict_size['fr'], n_hidden)
         self.en_embedding = nn.Embedding(self.dict_size['en'], n_hidden)
-        self.encoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True)
+        self.encoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True, bidirectional=True)
         self.decoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True)
 
         # Définition de la couche dense pour la sortie
@@ -35,9 +39,8 @@ class Seq2seq(nn.Module):
 
         # ---------------------- Laboratoire 2 - Question 3 - Début de la section à compléter -----------------
 
-        out = None
-        hidden = None
-        
+        out, hidden = self.encoder_layer(self.fr_embedding(x))
+        out = self.fc(out)
         # ---------------------- Laboratoire 2 - Question 3 - Fin de la section à compléter -----------------
 
         return out, hidden
@@ -49,16 +52,14 @@ class Seq2seq(nn.Module):
         batch_size = hidden.shape[1] # Taille de la batch
         vec_in = torch.zeros((batch_size, 1)).to(self.device).long() # Vecteur d'entrée pour décodage 
         vec_out = torch.zeros((batch_size, max_len, self.dict_size['en'])).to(self.device) # Vecteur de sortie du décodage
-
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-
-            # ---------------------- Laboratoire 2 - Question 3 - Début de la section à compléter -----------------   
-            
-            vec_out = vec_out
-
             # ---------------------- Laboratoire 2 - Question 3 - Début de la section à compléter -----------------
-
+            out, hidden = self.decoder_layer(self.en_embedding(vec_in), hidden)
+            out = self.fc(out)
+            vec_in = torch.argmax(out,dim=2)
+            vec_out[:,i] = out[:, 0]
+            # ---------------------- Laboratoire 2 - Question 3 - Début de la section à compléter -----------------
         return vec_out, hidden, None
 
     def forward(self, x):
@@ -90,6 +91,7 @@ class Seq2seq_attn(nn.Module):
         # Définition de la couche dense pour l'attention
         self.att_combine = nn.Linear(2*n_hidden, n_hidden)
         self.hidden2query = nn.Linear(n_hidden, n_hidden)
+        self.encoder2value = nn.Linear(self.dict_size['en'], n_hidden)
 
         # Définition de la couche dense pour la sortie
         self.fc = nn.Linear(n_hidden, self.dict_size['en'])
@@ -99,9 +101,9 @@ class Seq2seq_attn(nn.Module):
         #Encodeur
 
         # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
-        
-        out = None
-        hidden = None
+
+        out, hidden = self.encoder_layer(self.fr_embedding(x))
+        out = self.fc(out)
         
         # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
 
@@ -112,14 +114,14 @@ class Seq2seq_attn(nn.Module):
 
         # Couche dense à l'entrée du module d'attention
         query = self.hidden2query(query)
+        values = self.encoder2value(values)
 
         # Attention
 
         # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
-        
-       
-        attention_weights = None
-        attention_output = None
+        similarity = torch.bmm(query, values.transpose(1,2))
+        attention_weights = torch.nn.functional.softmax(similarity, dim=2)
+        attention_output = torch.bmm(attention_weights, values)
         
 
         # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
@@ -128,7 +130,6 @@ class Seq2seq_attn(nn.Module):
 
     def decoderWithAttn(self, encoder_outs, hidden):
         # Décodeur avec attention
-
         # Initialisation des variables
         max_len = self.max_len['en'] # Longueur max de la séquence anglaise (avec padding)
         batch_size = hidden.shape[1] # Taille de la batch
@@ -138,13 +139,13 @@ class Seq2seq_attn(nn.Module):
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-
-            # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
-            
-            vec_out = vec_out
-
-            # ---------------------- Laboratoire 2 - Question 4 - Début de la section à compléter -----------------
-
+            out, hidden = self.decoder_layer(self.en_embedding(vec_in), hidden)
+            attention_out, weights = self.attentionModule(out,encoder_outs)
+            vec_in = self.att_combine(torch.cat((out, attention_out),dim=2))
+            vec_in = self.fc(vec_in)
+            vec_out[:,i] = vec_in[:,0]
+            vec_in = torch.argmax(out, dim=2)
+            attention_weights[:,:,i] = weights[:,0]
         return vec_out, hidden, attention_weights
 
 

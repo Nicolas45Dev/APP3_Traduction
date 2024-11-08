@@ -17,12 +17,12 @@ if __name__ == '__main__':
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = 1               # Forcer l'utilisation du CPU (si un GPU est disponible)
     training = 1                # Faire l'entrainement sur l'ensemble de donnees
-    display_attention = 0       # Affichage des poids d'attention
+    display_attention = 1       # Affichage des poids d'attention
     learning_curves = 1         # Visualiser les courbes d'apprentissage pendant l'entrainement
     test = 1                    # Visualiser la generation sur des echantillons de validation
     batch_size = 100            # Taille des lots
     n_epochs = 50               # Nombre d'iteration sur l'ensemble de donnees
-    lr = 0.01                   # Taux d'apprentissage pour l'optimizateur
+    lr = 0.025                   # Taux d'apprentissage pour l'optimizateur
 
     n_hidden = 20               # Nombre de neurones caches par couche 
     n_layers = 2               # Nombre de de couches
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     print('\n')
 
     # Instanciation du model
-    model = Seq2seq(n_hidden=n_hidden, \
+    model = Seq2seq_attn(n_hidden=n_hidden, \
         n_layers=n_layers, device=device, symb2int=dataset.symb2int, \
         int2symb=dataset.int2symb, dict_size=dataset.dict_size, max_len=dataset.max_len)
 
@@ -121,7 +121,6 @@ if __name__ == '__main__':
                 ax.plot(train_dist, label='training distance')
                 ax.legend()
                 plt.draw()
-                plt.pause(0.01)
 
             # Enregistrer les poids
             torch.save(model,'model.pt')
