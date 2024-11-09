@@ -19,10 +19,10 @@ if __name__ == '__main__':
     learning_curves = True     # Affichage des courbes d'entrainement?
     gen_test_images = True     # Génération images test?
     seed = 1                # Pour répétabilité
-    n_workers = 0           # Nombre de threads pour chargement des données (mettre à 0 sur Windows)
+    n_workers = 2           # Nombre de threads pour chargement des données (mettre à 0 sur Windows)
 
     # À compléter
-    n_epochs = 0
+    n_epochs = 50
 
     # ---------------- Fin Paramètres et hyperparamètres ----------------#
 
@@ -34,20 +34,17 @@ if __name__ == '__main__':
     # Choix du device
     device = torch.device("cuda" if torch.cuda.is_available() and not force_cpu else "cpu")
 
-    # Instanciation de l'ensemble de données
-    # À compléter
-
-    
-    # Séparation de l'ensemble de données (entraînement et validation)
-    # À compléter
-   
-
-    # Instanciation des dataloaders
-    # À compléter
+    dataset = HandwrittenWords('data_trainval.p')
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=n_workers)
 
 
-    # Instanciation du model
-    # À compléter
+    model = trajectory2seq(n_hidden=256, n_layers=2, int2symb=dataset.int2symb, symb2int=dataset.symb2int, dict_size=dataset.dict_size, device=device, max_len=MAX_LEN)
+
+    print("Nombre d'époques:", n_epochs)
+    print("Ensemble de données:", len(dataset))
+    print("Modèle:", model)
+    print("Nombre de paramètres:", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    print("\n")
 
 
     # Initialisation des variables

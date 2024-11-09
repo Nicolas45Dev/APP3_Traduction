@@ -1,8 +1,6 @@
 import numpy
 import torch
 import numpy as np
-from numpy.distutils.mingw32ccompiler import rc_name
-from scipy.signal import max_len_seq
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import re
