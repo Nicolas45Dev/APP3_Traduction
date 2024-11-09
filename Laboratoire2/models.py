@@ -27,7 +27,7 @@ class Seq2seq(nn.Module):
         # Définition des couches du rnn
         self.fr_embedding = nn.Embedding(self.dict_size['fr'], n_hidden)
         self.en_embedding = nn.Embedding(self.dict_size['en'], n_hidden)
-        self.encoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True, bidirectional=True)
+        self.encoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True)
         self.decoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True)
 
         # Définition de la couche dense pour la sortie
