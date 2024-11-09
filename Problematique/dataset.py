@@ -82,6 +82,8 @@ class HandwrittenWords(Dataset):
             self.pad_symbol: 29
         }
 
+        self.num_character = 29
+
         self.data = dict()
         with open(filename, 'rb') as fp:
             self.data = pickle.load(fp)
@@ -114,7 +116,7 @@ class HandwrittenWords(Dataset):
         key = self.keys[idx]
         key = [self.symbol_to_onehot[i] for i in key]
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key)
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key, dtype=torch.float64)
 
 
     def visualisation(self, idx):
@@ -124,6 +126,15 @@ class HandwrittenWords(Dataset):
         plt.scatter(self.data[idx][1][0], self.data[idx][1][1])
         plt.ylim(-300, 300)
         plt.show()
+
+    def onehot_to_string(self, onehot):
+        # Convertir une liste de onehot en string
+        mot = [list(self.symbol_to_onehot.keys())[i] for i in np.argmax(onehot, axis=1)]
+
+        # Enlever les symboles de start, stop et padding
+        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+
+        return ''.join(mot)
 
 if __name__ == "__main__":
     # Code de test pour aider à compléter le dataset

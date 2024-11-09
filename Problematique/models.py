@@ -21,17 +21,12 @@ class trajectory2seq(nn.Module):
 
         # Définition des couches du rnn
         self.encoder_layer = nn.GRU(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
-        self.decoder_layer = nn.GRU(4, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
-        self.embedding = nn.Embedding(dict_size, n_hidden, dtype=torch.float64)
-
-        # Définition de la couche dense pour l'attention
-        # self.att_combine = nn.Linear(2 * n_hidden, n_hidden)
-        # self.hidden2query = nn.Linear(n_hidden, n_hidden)
-        # self.encoder2value = nn.Linear(self.dict_size, n_hidden)
+        self.decoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
+        self.embedding = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
         # Définition de la couche dense pour la sortie
-        self.fc = nn.Linear(4, 4880, dtype=torch.float64)
-        self.fc1 = nn.Linear(4, 4880, dtype=torch.float64)
+        self.fc = nn.Linear(n_hidden, 29, dtype=torch.float64)
+        self.fc1 = nn.Linear(n_hidden, 29, dtype=torch.float64)
         self.to(device)
 
     def encoder(self, x):
@@ -61,7 +56,7 @@ class trajectory2seq(nn.Module):
         batch_size = hidden.shape[1]  # Taille de la batch
 
         vec_in = torch.zeros((batch_size, 1)).to(self.device).long()  # Vecteur d'entrée pour décodage
-        vec_out = torch.zeros((batch_size, 6, self.dict_size)).to(self.device)  # Vecteur de sortie du décodage
+        vec_out = torch.zeros((batch_size, 5 + 1 + 1, 29)).to(self.device)  # Vecteur de sortie du décodage
 
         # attention_weights = torch.zeros((batch_size, self.max_len, self.max_len)).to(self.device)
 
@@ -78,5 +73,8 @@ class trajectory2seq(nn.Module):
         # Passe avant
         out, h = self.encoder(x)
         out, hidden, attn = self.decoderWithAttn(out, h)
+
+        # Appliquer un softmax sur la sortie
+        out = torch.nn.functional.softmax(out, dim=2)
         return out, h, None
 
