@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import re
 import pickle
 
+from triton.language import float64
+
 MAX_LEN = 5 + 1
 
 class HandwrittenWords(Dataset):
@@ -88,6 +90,7 @@ class HandwrittenWords(Dataset):
         self.keys = list(self.data.keys())
         self.keys = [list(word) for word in self.keys]
         self.values = list(self.data.values())
+        self.dict_size = len(self.data.keys())
 
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
@@ -100,16 +103,18 @@ class HandwrittenWords(Dataset):
             ])
             for element in self.values
         ]
+
+
         self.data = list(zip(self.keys, self.values))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # À compléter
         key = self.keys[idx]
         key = [self.symbol_to_onehot[i] for i in key]
-        return torch.tensor(self.values[idx]), torch.tensor(key)
+        # Aplatir la liste des valeurs
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key)
 
 
     def visualisation(self, idx):
