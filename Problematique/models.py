@@ -4,8 +4,12 @@
 
 import torch
 from torch import nn
+from torch.nn.functional import embedding
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 import matplotlib.pyplot as plt
+from triton.ops import attention
+
 
 class trajectory2seq(nn.Module):
     def __init__(self, n_hidden, n_layers, dict_size, device, max_len, max_point_len = 914):
@@ -20,19 +24,27 @@ class trajectory2seq(nn.Module):
         self.point_size = max_point_len
 
         # Définition des couches du rnn
-        self.encoder_layer = nn.GRU(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
+        self.encoder_layer = nn.GRU(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=False)
         self.decoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
-        self.embedding = nn.Embedding(29, n_hidden, dtype=torch.float64)
+        self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
+
+        self.hidden2query = nn.Linear(n_hidden, n_hidden, dtype=torch.float64)
+        self.encoder2value = nn.Linear(29, n_hidden, dtype=torch.float64)
 
         # Définition de la couche dense pour la sortie
         self.fc = nn.Linear(n_hidden, 29, dtype=torch.float64)
-        self.fc1 = nn.Linear(n_hidden, 29, dtype=torch.float64)
+        self.fc1 = nn.Linear(2 * n_hidden, 29, dtype=torch.float64)
         self.to(device)
 
-    def encoder(self, x):
+    def encoder(self, x, masque):
+        longueur_sequence = masque.sum(dim=1)
+        packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
+
         # Encodeur
-        out, hidden = self.encoder_layer(x)
-        out = self.fc(hidden[-1])
+        out, hidden = self.encoder_layer(packed_input)
+        out, _ = pad_packed_sequence(out, batch_first=True)
+
+        out = self.fc(out)
         return out, hidden
 
     def attentionModule(self, query, values):
@@ -56,22 +68,27 @@ class trajectory2seq(nn.Module):
         batch_size = hidden.shape[1]  # Taille de la batch
 
         vec_in = torch.zeros((batch_size, 1)).to(self.device).long()  # Vecteur d'entrée pour décodage
-        vec_out = torch.zeros((batch_size, 5 + 1 + 1, 29)).to(self.device)  # Vecteur de sortie du décodage
-
-        # attention_weights = torch.zeros((batch_size, self.max_len, self.max_len)).to(self.device)
+        vec_out = torch.zeros((batch_size, max_len, 29)).to(self.device)  # Vecteur de sortie du décodage
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-            out, hidden = self.decoder_layer(self.embedding(vec_in), hidden)
-            out = self.fc1(out)
+            embedding_vec = self.embedding_output(vec_in)
+            out, hidden = self.decoder_layer(embedding_vec, hidden)
+
+            # Calcul de l'attention
+            attention_out, attention_weigths = self.attentionModule(out, encoder_outs)
+            vec_in = torch.cat((out, attention_out), dim=2)
+
+            vec_in = self.fc1(vec_in)
+            # vec_in = torch.argmax(out, dim=2)
+            vec_out[:, i] = vec_in[:, 0]
             vec_in = torch.argmax(out, dim=2)
-            vec_out[:, i] = out[:, 0]
 
         return vec_out, hidden, None
 
-    def forward(self, x):
+    def forward(self, x, masque):
         # Passe avant
-        out, h = self.encoder(x)
+        out, h = self.encoder(x, masque)
         out, hidden, attn = self.decoderWithAttn(out, h)
 
         # Appliquer un softmax sur la sortie

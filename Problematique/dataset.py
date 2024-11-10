@@ -100,12 +100,11 @@ class HandwrittenWords(Dataset):
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
         self.values = [
             np.array([
-                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
-                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
+                [element[0][j] if j < len(element[0]) else -1 for j in range(self.max_sequence_len)],
+                [element[1][j] if j < len(element[1]) else -1 for j in range(self.max_sequence_len)]
             ])
             for element in self.values
         ]
-
 
         self.data = list(zip(self.keys, self.values))
 
