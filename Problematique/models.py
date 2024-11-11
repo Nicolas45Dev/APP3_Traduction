@@ -10,7 +10,6 @@ from torch.nn.functional import embedding
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 import matplotlib.pyplot as plt
-from triton.ops import attention
 
 
 class trajectory2seq(nn.Module):
@@ -29,11 +28,10 @@ class trajectory2seq(nn.Module):
         self.start_symbol = '<sos>'
         self.stop_symbol = '<eos>'
         self.device = device
-        self.teaching_forcing_ratio = 0.3
-
+        self.teaching_forcing_ratio = 0.6
         # Définition des couches du rnn
-        self.encoder_layer = nn.GRU(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=False)
-        self.decoder_layer = nn.GRU(n_hidden, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
+        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=False)
+        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
         self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
         self.hidden2query = nn.Linear(n_hidden, n_hidden, dtype=torch.float64)
@@ -45,17 +43,17 @@ class trajectory2seq(nn.Module):
 
         self.to(device)
 
-    def encoder(self, x, mask):
+    def encoder(self, x):
 
         # longueur_sequence = mask.sum(dim=1)
         # packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
 
         # Encodeur
-        out, hn = self.encoder_layer(x)
+        out, (hn, c) = self.encoder_layer(x)
         # out, _ = pad_packed_sequence(out, batch_first=True)
 
         out = self.fc(out)
-        return out, hn
+        return out, hn, c
 
     def attentionModule(self, query, values):
         # Module d'attention
@@ -71,7 +69,7 @@ class trajectory2seq(nn.Module):
 
         return attention_output, attention_weights
 
-    def decoderWithAttn(self, encoder_outs, hidden, target):
+    def decoderWithAttn(self, encoder_outs, hidden, cell, target):
         # Décodeur avec attention
         # Initialisation des variables
         max_len = self.max_len # Longueur max de la séquence anglaise (avec padding)
@@ -82,7 +80,7 @@ class trajectory2seq(nn.Module):
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-            out, hidden = self.decoder_layer(self.embedding_output(vec_in), hidden)
+            out, (hidden,cell) = self.decoder_layer(self.embedding_output(vec_in), (hidden, cell))
             # # sans attention
             # out = self.fc(out)
             #
@@ -95,16 +93,23 @@ class trajectory2seq(nn.Module):
             vec_in = torch.cat((out, attention_out), dim=2)
             vec_in = self.fc1(vec_in)
             vec_out[:, i] = vec_in[:, 0]
-            vec_in = torch.argmax(out, dim=2)
+
+            # vec_in = torch.argmax(vec_in, dim=2)
+
+            # Teaching forcing
+            rand_val = torch.rand(1, device=self.device).item()
+            if rand_val < self.teaching_forcing_ratio:
+                vec_in = target[:, i].unsqueeze(1)
+            else:
+                vec_in = torch.argmax(out, dim=2)
 
         return vec_out, hidden, attention_weigths
 
-    def forward(self, x, target, mask = None):
+    def forward(self, x, target):
         # Passe avant
-        out, h = self.encoder(x, mask)
-        out, hidden, attn = self.decoderWithAttn(out, h, target)
+        out, h, cell = self.encoder(x)
 
-        # Appliquer un softmax sur la sortie
-        # out = torch.nn.functional.softmax(out, dim=2)
+        out, hidden, attn = self.decoderWithAttn(out, h, cell, target)
+
         return out, h, attn
 

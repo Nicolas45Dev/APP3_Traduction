@@ -127,7 +127,7 @@ if __name__ == '__main__':
                     mot_b = dataset.int_to_string(b)
                     # print(mot_a,mot_b)
                     dist += edit_distance(mot_a, mot_b) / M
-
+            torch.save(model, 'model.pt')
             # Validation
             model.eval()
 
@@ -160,6 +160,7 @@ if __name__ == '__main__':
     if test:
         # Évaluation
         # À compléter
+        model = torch.load('model.pt')
         model.eval()
         # Charger les données de tests
         # À compléter
