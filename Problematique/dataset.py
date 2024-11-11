@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
-import re
 import pickle
 
 from triton.language import float64
@@ -96,12 +95,16 @@ class HandwrittenWords(Dataset):
 
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
+        # self.standardize_data()
+        self.norm_data()
+        self.difference_point()
+
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
         self.values = [
             np.array([
-                [element[0][j] if j < len(element[0]) else -1 for j in range(self.max_sequence_len)],
-                [element[1][j] if j < len(element[1]) else -1 for j in range(self.max_sequence_len)]
+                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
+                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
             ])
             for element in self.values
         ]
@@ -134,6 +137,40 @@ class HandwrittenWords(Dataset):
         mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
+
+    def standardize_data(self):
+        """
+        La fonction va standardisé les données
+        """
+        avg_x = ([np.mean(word[0]) for word in self.values])
+        avg_y = ([np.mean(word[1]) for word in self.values])
+        std_x = ([np.std(word[0]) for word in self.values])
+        std_y = ([np.std(word[1]) for word in self.values])
+
+        for i in range(len(self.values)):
+            self.values[i][0] = (self.values[i][0] - avg_x[i]) / std_x[i]
+            self.values[i][1] = (self.values[i][1] - avg_y[i]) / std_y[i]
+
+    def norm_data(self):
+        """
+        La fonction va normaliser les données
+        """
+        max_x = ([np.max(word[0]) for word in self.values])
+        max_y = ([np.max(word[1]) for word in self.values])
+        min_x = ([np.min(word[0]) for word in self.values])
+        min_y = ([np.min(word[1]) for word in self.values])
+
+        for i in range(len(self.values)):
+            self.values[i][0] = (self.values[i][0] - min_x[i]) / (max_x[i] - min_x[i])
+            self.values[i][1] = (self.values[i][1] - min_y[i]) / (max_y[i] - min_y[i])
+
+    def difference_point(self):
+        """
+        La fonction va calculer la différence entre les points
+        """
+        for i in range(len(self.values)):
+            self.values[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
+            self.values[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
 
 if __name__ == "__main__":
     # Code de test pour aider à compléter le dataset
