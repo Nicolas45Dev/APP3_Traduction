@@ -21,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--force_cpu', type=bool, help='Forcer a utiliser le cpu')
     parser.add_argument('--training', type=bool, help='Entrainement')
     parser.add_argument('--test', type=bool, help='Test')
+    parser.add_argument('--n_batches', type=int, help='Nombre de batchs')
     parser.add_argument('--learning_rate', type=float, help='Affichage des courbes d\'entrainement')
     parser.add_argument('--n_epochs', type=int, default=50, help='Nombre d\'époques')
 
@@ -34,7 +35,11 @@ if __name__ == '__main__':
     n_epochs = args.n_epochs
     seed = 1
     n_workers = 4
+    batch_size = args.n_batches
+    train_val_split = .8
+    trainval_test_split = .9
     gen_test_images = False
+    display_attention = False
 
     # ---------------- Fin Paramètres et hyperparamètres ----------------#
 
@@ -47,9 +52,23 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() and force_cpu else "cpu")
 
     dataset = HandwrittenWords('data_trainval.p')
-    dataloader = DataLoader(dataset, batch_size=100, shuffle=True, num_workers=n_workers)
+    # Séparation du dataset (entraînement et validation)
+    n_trainval_samp = int(len(dataset) * trainval_test_split)
+    n_test_samp = len(dataset) - n_trainval_samp
+    dataset_trainVal, dataset_test = torch.utils.data.random_split(dataset, [n_trainval_samp, n_test_samp])
+    n_train_samp = int(len(dataset_trainVal) * train_val_split)
+    n_val_samp = len(dataset_trainVal) - n_train_samp
+    dataset_train, dataset_val = torch.utils.data.random_split(dataset_trainVal, [n_train_samp, n_val_samp])
 
-    model = trajectory2seq(n_hidden=10, n_layers=2, dict_size=dataset.dict_size, device=device, max_len=MAX_LEN + 1)
+    # Instanciation des dataloaders
+    dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+    dataload_val = DataLoader(dataset_val, batch_size=batch_size, shuffle=False, num_workers=n_workers)
+
+    print('Number of epochs : ', n_epochs)
+    print('Training data : ', len(dataset_train))
+    print('Validation data : ', len(dataset_val))
+    print('\n')
+    model = trajectory2seq(n_hidden=10, n_layers=2, dict_size=dataset.dict_size, device=device, max_len=MAX_LEN + 1, symbol_to_int=dataset.symbol_to_int)
 
     print("Nombre d'époques:", n_epochs)
     print("Ensemble de données:", len(dataset))
@@ -68,7 +87,7 @@ if __name__ == '__main__':
             fig, ax = plt.subplots(2, 1)
 
         # Ignore les symboles de padding
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=dataset.symbol_to_int['<pad>'])
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         for epoch in range(1, n_epochs + 1):
@@ -78,20 +97,18 @@ if __name__ == '__main__':
             model.train()
             dist = 0.0
 
-            for batch_idx, (data, target) in enumerate(dataloader):
+            for batch_idx, (data, target) in enumerate(dataload_train):
 
                 data = data.to(device)
-
-                padding_mask = (data[:, :, 0] == -1) & (data[:, :, 1] == -1)
-                padding_mask = ~padding_mask
 
                 target = target.to(device)
 
                 optimizer.zero_grad()
-                output, hidden, attn = model(data, padding_mask)
+                output, hidden, attn = model(data, target)
 
                 # Calcul de la loss
-                loss = criterion(output, target)
+                # target_cross_entropy = torch.argmax(target, dim=-1).long()
+                loss = criterion(output.reshape(-1, dataset.num_character), target.reshape(-1))
                 loss.backward()
                 optimizer.step()
 
@@ -99,6 +116,7 @@ if __name__ == '__main__':
 
                 # Calcul de la distance d'édition
                 output_list = torch.argmax(output, dim=-1).detach().cpu()
+                # output_list = dataset.int_to_onehot(output_list)
                 output_list = torch.nn.functional.one_hot(output_list, num_classes=dataset.num_character).detach().cpu().numpy()
                 target_list = target.detach().cpu().numpy()
                 M = len(output_list)
@@ -106,29 +124,31 @@ if __name__ == '__main__':
                     a = output_list[i]
                     b = target_list[i]
                     mot_a = dataset.onehot_to_string(a)
-                    mot_b = dataset.onehot_to_string(b)
+                    mot_b = dataset.int_to_string(b)
+                    # print(mot_a,mot_b)
                     dist += edit_distance(mot_a, mot_b) / M
 
-            # # Validation
-            # model.eval()
-            #
-            # for data, target in dataloader:
-            #     data = data.to(device)
-            #
-            #     output, hidden, attn = model(data)
-            #     loss_val = criterion(output, target.to(device))
-            #     running_loss_val += loss_val.item()
+            # Validation
+            model.eval()
 
-            print(f'\rEpoch {epoch} - Average Loss: {running_loss/len(dataloader):.4f} - Average Edit Distance: {dist / len(dataloader):.4f}')
+            for data, target in dataload_val:
+                data = data.to(device)
+                target = target.to(device)
+
+                output, hidden, attn = model(data, target)
+                loss_val = criterion(output.reshape(-1, dataset.num_character), target.reshape(-1))
+                running_loss_val += loss_val.item()
+
+            print(f'\rEpoch {epoch} - Average Loss: {running_loss / len(dataload_train):.4f} - Average Edit Distance: {dist / len(dataload_train):.4f}')
 
             if True:
-                train_loss.append(running_loss/len(dataloader))
-                val_loss.append(running_loss_val/len(dataloader))
-                train_dist.append(dist/len(dataloader))
+                train_loss.append(running_loss / len(dataload_train))
+                val_loss.append(running_loss_val / len(dataload_val))
+                train_dist.append(dist / len(dataload_train))
                 ax[0].plot(train_loss)
-                #ax[0].plot(val_loss)
+                ax[0].plot(val_loss)
                 ax[0].set_title('Loss')
-                #ax[0].legend(['Train', 'Validation'])
+                ax[0].legend(['Train', 'Validation'])
                 ax[1].plot(train_dist)
                 ax[1].set_title('Edit Distance')
                 plt.draw()
@@ -140,12 +160,24 @@ if __name__ == '__main__':
     if test:
         # Évaluation
         # À compléter
-
+        model.eval()
         # Charger les données de tests
         # À compléter
+        # Pour la validation
+        # dataset_test = HandwrittenWords('data_test.p')
+        dataload_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=n_workers)
+        for data, target in dataload_test:
+            data = data.to(device)
+            target = target.to(device)
+            output, hidden, attn = model(data, target)
 
-        # Affichage de l'attention
-        # À compléter (si nécessaire)
+    # if display_attention:
+    #     attn = attn.detach().cpu().numpy()
+    #     plt.figure()
+    #     plt.imshow(attn[0])
+    #     plt.xticks(np.arange(0, 32, 1))
+    #     plt.yticks(np.arange(0, 32, 1))
+    #     plt.show()
 
         # Affichage des résultats de test
         # À compléter

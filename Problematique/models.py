@@ -1,8 +1,10 @@
 # GRO722 problématique
 # Auteur: Jean-Samuel Lauzon et  Jonathan Vincent
 # Hivers 2021
+import random
 
 import torch
+from numpy.matlib import randn
 from torch import nn
 from torch.nn.functional import embedding
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -12,7 +14,7 @@ from triton.ops import attention
 
 
 class trajectory2seq(nn.Module):
-    def __init__(self, n_hidden, n_layers, dict_size, device, max_len, max_point_len = 914):
+    def __init__(self, n_hidden, n_layers, dict_size, device, max_len, symbol_to_int):
         super(trajectory2seq, self).__init__()
 
         # Definition des paramètres
@@ -21,7 +23,13 @@ class trajectory2seq(nn.Module):
         self.device = device
         self.dict_size = dict_size
         self.max_len = max_len
-        self.point_size = max_point_len
+        self.symbol_to_int = symbol_to_int
+
+        self.pad_symbol = '<pad>'
+        self.start_symbol = '<sos>'
+        self.stop_symbol = '<eos>'
+        self.device = device
+        self.teaching_forcing_ratio = 0.3
 
         # Définition des couches du rnn
         self.encoder_layer = nn.GRU(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=False)
@@ -34,18 +42,20 @@ class trajectory2seq(nn.Module):
         # Définition de la couche dense pour la sortie
         self.fc = nn.Linear(n_hidden, 29, dtype=torch.float64)
         self.fc1 = nn.Linear(2 * n_hidden, 29, dtype=torch.float64)
+
         self.to(device)
 
-    def encoder(self, x, masque):
-        longueur_sequence = masque.sum(dim=1)
-        packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
+    def encoder(self, x, mask):
+
+        # longueur_sequence = mask.sum(dim=1)
+        # packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
 
         # Encodeur
-        out, hidden = self.encoder_layer(packed_input)
-        out, _ = pad_packed_sequence(out, batch_first=True)
+        out, hn = self.encoder_layer(x)
+        # out, _ = pad_packed_sequence(out, batch_first=True)
 
         out = self.fc(out)
-        return out, hidden
+        return out, hn
 
     def attentionModule(self, query, values):
         # Module d'attention
@@ -61,37 +71,40 @@ class trajectory2seq(nn.Module):
 
         return attention_output, attention_weights
 
-    def decoderWithAttn(self, encoder_outs, hidden):
+    def decoderWithAttn(self, encoder_outs, hidden, target):
         # Décodeur avec attention
         # Initialisation des variables
         max_len = self.max_len # Longueur max de la séquence anglaise (avec padding)
         batch_size = hidden.shape[1]  # Taille de la batch
 
-        vec_in = torch.zeros((batch_size, 1)).to(self.device).long()  # Vecteur d'entrée pour décodage
+        vec_in = torch.full((batch_size, 1), fill_value = self.symbol_to_int[self.start_symbol]).to(self.device)
         vec_out = torch.zeros((batch_size, max_len, 29)).to(self.device)  # Vecteur de sortie du décodage
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-            embedding_vec = self.embedding_output(vec_in)
-            out, hidden = self.decoder_layer(embedding_vec, hidden)
+            out, hidden = self.decoder_layer(self.embedding_output(vec_in), hidden)
+            # # sans attention
+            # out = self.fc(out)
+            #
+            # vec_in = torch.argmax(out, dim=2)
+            #
+            # vec_out[:, i] = out[:, 0]
 
-            # Calcul de l'attention
+            # avec attention
             attention_out, attention_weigths = self.attentionModule(out, encoder_outs)
             vec_in = torch.cat((out, attention_out), dim=2)
-
             vec_in = self.fc1(vec_in)
-            # vec_in = torch.argmax(out, dim=2)
             vec_out[:, i] = vec_in[:, 0]
             vec_in = torch.argmax(out, dim=2)
 
-        return vec_out, hidden, None
+        return vec_out, hidden, attention_weigths
 
-    def forward(self, x, masque):
+    def forward(self, x, target, mask = None):
         # Passe avant
-        out, h = self.encoder(x, masque)
-        out, hidden, attn = self.decoderWithAttn(out, h)
+        out, h = self.encoder(x, mask)
+        out, hidden, attn = self.decoderWithAttn(out, h, target)
 
         # Appliquer un softmax sur la sortie
-        out = torch.nn.functional.softmax(out, dim=2)
-        return out, h, None
+        # out = torch.nn.functional.softmax(out, dim=2)
+        return out, h, attn
 

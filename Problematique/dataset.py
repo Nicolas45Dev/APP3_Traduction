@@ -1,6 +1,8 @@
 import numpy
 import torch
 import numpy as np
+from fontTools.ttx import ttList
+from sympy.physics.units import speed
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import pickle
@@ -49,6 +51,38 @@ class HandwrittenWords(Dataset):
             self.pad_symbol: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
         }
 
+        self.int_to_onehot = {
+            0: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            1: [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            2: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            3: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            5: [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            6: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            7: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            8: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            9: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            10: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            12: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            13: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            14: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            15: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            16: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            17: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            18: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            19: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            20: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            21: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            22: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+            23: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            24: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+            25: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+            26: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            27: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+            28: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        }
+
         self.symbol_to_int = {
             'a': 1,
             'b': 2,
@@ -95,9 +129,9 @@ class HandwrittenWords(Dataset):
 
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
-        # self.standardize_data()
+        self.standardize_data()
         self.norm_data()
-        self.difference_point()
+        # self.norm_speed()
 
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
@@ -108,6 +142,16 @@ class HandwrittenWords(Dataset):
             ])
             for element in self.values
         ]
+        # self.speed = [
+        #     np.array([
+        #         [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
+        #         [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
+        #     ])
+        #     for element in self.speed
+        # ]
+
+        # Transformer les données en 4880, 4, 457 => self.values + self.speed
+        # self.values = [np.array([self.values[i], self.speed[i]]) for i in range(len(self.values))]
 
         self.data = list(zip(self.keys, self.values))
 
@@ -116,22 +160,31 @@ class HandwrittenWords(Dataset):
 
     def __getitem__(self, idx):
         key = self.keys[idx]
-        key = [self.symbol_to_onehot[i] for i in key]
+        key = [self.symbol_to_int[i] for i in key]
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key, dtype=torch.float64)
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key, dtype=torch.long)
 
 
     def visualisation(self, idx):
         # Plot the handwritten word
         fig = plt.figure()
         plt.title(self.keys[idx])
-        plt.scatter(self.data[idx][1][0], self.data[idx][1][1])
-        plt.ylim(-300, 300)
+        plt.scatter(self.data[idx][1][0][0], self.data[idx][1][0][1])
+        plt.scatter(self.data[idx][1][1][0], self.data[idx][1][1][1])
         plt.show()
 
     def onehot_to_string(self, onehot):
         # Convertir une liste de onehot en string
         mot = [list(self.symbol_to_onehot.keys())[i] for i in np.argmax(onehot, axis=1)]
+
+        # Enlever les symboles de start, stop et padding
+        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+
+        return ''.join(mot)
+
+    def int_to_string(self, int_list):
+        # Convertir une liste d'entiers en string
+        mot = [list(self.symbol_to_int.keys())[i - 1] for i in int_list]
 
         # Enlever les symboles de start, stop et padding
         mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
@@ -172,10 +225,11 @@ class HandwrittenWords(Dataset):
             self.values[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
             self.values[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
 
+
 if __name__ == "__main__":
     # Code de test pour aider à compléter le dataset
     a = HandwrittenWords('data_trainval.p')
     item = a.__getitem__(1)
 
-    for i in range(10):
+    for i in range(4):
         a.visualisation(np.random.randint(0, len(a)))
