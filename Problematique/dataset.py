@@ -130,7 +130,7 @@ class HandwrittenWords(Dataset):
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
         # self.standardize_data()
-        # self.norm_data()
+        self.norm_data()
         # self.norm_speed()
 
         # Ajout du padding aux séquences
@@ -178,16 +178,16 @@ class HandwrittenWords(Dataset):
         mot = [list(self.symbol_to_onehot.keys())[i] for i in np.argmax(onehot, axis=1)]
 
         # Enlever les symboles de start, stop et padding
-        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        # mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 
     def int_to_string(self, int_list):
         # Convertir une liste d'entiers en string
-        mot = [list(self.symbol_to_int.keys())[i - 1] for i in int_list]
+        mot = [list(self.symbol_to_int.keys())[i] for i in int_list]
 
         # Enlever les symboles de start, stop et padding
-        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        # mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 

@@ -125,8 +125,9 @@ if __name__ == '__main__':
                     b = target_list[i]
                     mot_a = dataset.onehot_to_string(a)
                     mot_b = dataset.int_to_string(b)
-                    # print(mot_a,mot_b)
                     dist += edit_distance(mot_a, mot_b) / M
+
+
             torch.save(model, 'model.pt')
             # Validation
             model.eval()
@@ -171,17 +172,27 @@ if __name__ == '__main__':
             data = data.to(device)
             target = target.to(device)
             output, hidden, attn = model(data, target)
-
-    # if display_attention:
-    #     attn = attn.detach().cpu().numpy()
-    #     plt.figure()
-    #     plt.imshow(attn[0])
-    #     plt.xticks(np.arange(0, 32, 1))
-    #     plt.yticks(np.arange(0, 32, 1))
-    #     plt.show()
+            output_list = torch.argmax(output, dim=-1).detach().cpu()
+            output_list = torch.nn.functional.one_hot(output_list,
+                                                      num_classes=dataset.num_character).detach().cpu().numpy()
+            target_list = target.detach().cpu().numpy()
+        # if display_attention:
+        #     attn = attn.detach().cpu().numpy()
+        #     plt.figure()
+        #     plt.imshow(attn[0])
+        #     plt.xticks(np.arange(0, 32, 1))
+        #     plt.yticks(np.arange(0, 32, 1))
+        #     plt.show()
 
         # Affichage des résultats de test
-        # À compléter
+            for i in range(len(output_list)):
+                a = output_list[i]
+                b = target_list[i]
+                mot_a = dataset.onehot_to_string(a)
+                mot_b = dataset.int_to_string(b)
+                print('Output: ', mot_a)
+                print('Target: ', mot_b)
+                print('')
         
         # Affichage de la matrice de confusion
         # À compléter

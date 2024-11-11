@@ -30,15 +30,15 @@ class trajectory2seq(nn.Module):
         self.device = device
         self.teaching_forcing_ratio = 0.6
         # Définition des couches du rnn
-        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=False)
-        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, n_layers, batch_first=True, dtype=torch.float64)
+        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True)
+        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64)
         self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
         self.hidden2query = nn.Linear(n_hidden, n_hidden, dtype=torch.float64)
         self.encoder2value = nn.Linear(29, n_hidden, dtype=torch.float64)
 
         # Définition de la couche dense pour la sortie
-        self.fc = nn.Linear(n_hidden, 29, dtype=torch.float64)
+        self.fc = nn.Linear(2 * n_hidden, 29, dtype=torch.float64)
         self.fc1 = nn.Linear(2 * n_hidden, 29, dtype=torch.float64)
 
         self.to(device)
@@ -110,6 +110,5 @@ class trajectory2seq(nn.Module):
         out, h, cell = self.encoder(x)
 
         out, hidden, attn = self.decoderWithAttn(out, h, cell, target)
-
         return out, h, attn
 
