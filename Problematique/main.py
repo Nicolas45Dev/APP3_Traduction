@@ -87,7 +87,7 @@ if __name__ == '__main__':
             fig, ax = plt.subplots(2, 1)
 
         # Ignore les symboles de padding
-        criterion = nn.CrossEntropyLoss(ignore_index=dataset.symbol_to_int['<pad>'])
+        criterion = nn.CrossEntropyLoss()#ignore_index=dataset.symbol_to_int['<pad>'])
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         for epoch in range(1, n_epochs + 1):
@@ -188,8 +188,8 @@ if __name__ == '__main__':
             for i in range(len(output_list)):
                 a = output_list[i]
                 b = target_list[i]
-                mot_a = dataset.onehot_to_string(a)
-                mot_b = dataset.int_to_string(b)
+                mot_a = dataset.onehot_to_string(a, pad=False)
+                mot_b = dataset.int_to_string(b, pad=False)
                 print('Output: ', mot_a)
                 print('Target: ', mot_b)
                 print('')

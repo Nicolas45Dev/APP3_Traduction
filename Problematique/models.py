@@ -81,12 +81,6 @@ class trajectory2seq(nn.Module):
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
             out, (hidden,cell) = self.decoder_layer(self.embedding_output(vec_in), (hidden, cell))
-            # # sans attention
-            # out = self.fc(out)
-            #
-            # vec_in = torch.argmax(out, dim=2)
-            #
-            # vec_out[:, i] = out[:, 0]
 
             # avec attention
             attention_out, attention_weigths = self.attentionModule(out, encoder_outs)

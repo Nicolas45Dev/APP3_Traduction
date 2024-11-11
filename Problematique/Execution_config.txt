@@ -1,0 +1,1 @@
+--force_cpu 1 --training 1 --test 0 --learning_rate 0.0012 --n_epochs 175 --n_batches 64

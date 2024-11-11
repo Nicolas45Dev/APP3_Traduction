@@ -173,21 +173,23 @@ class HandwrittenWords(Dataset):
         plt.scatter(self.data[idx][1][1][0], self.data[idx][1][1][1])
         plt.show()
 
-    def onehot_to_string(self, onehot):
+    def onehot_to_string(self, onehot, pad=True):
         # Convertir une liste de onehot en string
         mot = [list(self.symbol_to_onehot.keys())[i] for i in np.argmax(onehot, axis=1)]
 
         # Enlever les symboles de start, stop et padding
-        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        if pad:
+            mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 
-    def int_to_string(self, int_list):
+    def int_to_string(self, int_list, pad=True):
         # Convertir une liste d'entiers en string
         mot = [list(self.symbol_to_int.keys())[i] for i in int_list]
 
         # Enlever les symboles de start, stop et padding
-        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        if pad:
+            mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 
