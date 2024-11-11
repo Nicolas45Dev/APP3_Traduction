@@ -178,7 +178,7 @@ class HandwrittenWords(Dataset):
         mot = [list(self.symbol_to_onehot.keys())[i] for i in np.argmax(onehot, axis=1)]
 
         # Enlever les symboles de start, stop et padding
-        # mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 
@@ -187,7 +187,7 @@ class HandwrittenWords(Dataset):
         mot = [list(self.symbol_to_int.keys())[i] for i in int_list]
 
         # Enlever les symboles de start, stop et padding
-        # mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
+        mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
         return ''.join(mot)
 

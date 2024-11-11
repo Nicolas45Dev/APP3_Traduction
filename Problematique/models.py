@@ -30,8 +30,8 @@ class trajectory2seq(nn.Module):
         self.device = device
         self.teaching_forcing_ratio = 0.6
         # Définition des couches du rnn
-        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True)
-        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64)
+        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
+        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64, dropout=0.2)
         self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
         self.hidden2query = nn.Linear(n_hidden, n_hidden, dtype=torch.float64)
