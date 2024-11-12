@@ -2,16 +2,21 @@
 # Auteur: Jean-Samuel Lauzon et  Jonathan Vincent
 # Hivers 2021
 from dis import distb
+from sys import maxsize
 
 import matplotlib.pyplot as plt
 import torch
+from matplotlib.pyplot import yticks
 from torch import nn
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+
+import metrics
 from models import *
 from dataset import *
 from metrics import *
 import argparse
+import seaborn as sns
 
 
 if __name__ == '__main__':
@@ -29,8 +34,8 @@ if __name__ == '__main__':
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = args.force_cpu
-    training = args.training
-    test = args.test
+    training = 0
+    test = 1
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
     seed = 1
@@ -175,16 +180,30 @@ if __name__ == '__main__':
         # Pour la validation
         # dataset_test = HandwrittenWords('data_test.p')
         dataload_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=n_workers)
-        for data, target in dataload_test:
+        confusion_matrix_array = np.zeros([len(dataload_test), 29, 29 ])
+        for i, (data, target) in enumerate(dataload_test):
             data = data.to(device)
             target = target.to(device)
+
             padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
             padding_mask = ~padding_mask
+
             output, hidden, attn = model(data, target, padding_mask)
             output_list = torch.argmax(output, dim=-1).detach().cpu()
-            output_list = torch.nn.functional.one_hot(output_list,
+            output_one_hot = torch.nn.functional.one_hot(output_list,
                                                       num_classes=dataset.num_character).detach().cpu().numpy()
             target_list = target.detach().cpu().numpy()
+            target_labels = target_list.flatten()
+            pred_labels = output_list.flatten()
+            conf_matrix = metrics.confusion_matrix(target_labels, pred_labels)
+
+            current_size = conf_matrix.shape[0]
+
+            if current_size < 29:
+                conf_matrix = np.pad(conf_matrix, ((0, 29 - current_size), (0, 29 - current_size)))
+
+            confusion_matrix_array[i] = conf_matrix
+
         # if display_attention:
         #     attn = attn.detach().cpu().numpy()
         #     plt.figure()
@@ -192,18 +211,29 @@ if __name__ == '__main__':
         #     plt.xticks(np.arange(0, 32, 1))
         #     plt.yticks(np.arange(0, 32, 1))
         #     plt.show()
+            # LABO 2
+            # attn = attn.detach().cpu()[0, :, :]
+            # plt.figure()
+            # plt.imshow(attn[0:len(in_seq), 0:len(out_seq)], origin='lower', vmax=1, vmin=0, cmap='pink')
+            # plt.xticks(np.arange(len(out_seq)), out_seq, rotation=45)
+            # plt.yticks(np.arange(len(in_seq)), in_seq)
+            # plt.show()
 
         # Affichage des résultats de test
-            for i in range(len(output_list)):
-                a = output_list[i]
-                b = target_list[i]
-                mot_a = dataset.onehot_to_string(a, pad=False)
-                mot_b = dataset.int_to_string(b, pad=False)
-                print('Output: ', mot_a)
-                print('Target: ', mot_b)
-                print('')
+        #     for i in range(len(output_one_hot)):
+        #         a = output_one_hot[i]
+        #         b = target_list[i]
+        #         mot_a = "".join(dataset.onehot_to_string(a, pad=False))
+        #         mot_b = "".join(dataset.int_to_string(b, pad=False))
+        #         print('Output: ', mot_a)
+        #         print('Target: ', mot_b)
+        #         print('')
         
         # Affichage de la matrice de confusion
-        # À compléter
-
-        pass
+        conf_matrix = np.mean(confusion_matrix_array, dtype=np.int64, axis=0)
+        plt.figure(figsize=(10, 7))
+        sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=True, xticklabels=dataset.int_to_string(np.arange(29), pad=False), yticklabels=dataset.int_to_string(np.arange(29), pad=False))
+        plt.xlabel('Prediction')
+        plt.ylabel('Target')
+        plt.title('Confusion Matrix')
+        plt.show()

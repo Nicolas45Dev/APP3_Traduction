@@ -10,6 +10,7 @@ from torch.nn.functional import embedding
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 import matplotlib.pyplot as plt
+from triton.ops import attention
 
 
 class trajectory2seq(nn.Module):
@@ -30,7 +31,7 @@ class trajectory2seq(nn.Module):
         self.device = device
         self.teaching_forcing_ratio = 0.5
         # Définition des couches du rnn
-        self.encoder_layer = nn.LSTM(4, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
+        self.encoder_layer = nn.LSTM(5, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
         self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64, dropout=0.2)
         self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
@@ -77,16 +78,18 @@ class trajectory2seq(nn.Module):
 
         vec_in = torch.full((batch_size, 1), fill_value = self.symbol_to_int[self.start_symbol]).to(self.device)
         vec_out = torch.zeros((batch_size, max_len, 29)).to(self.device)  # Vecteur de sortie du décodage
+        attention_weigths = torch.zeros((batch_size, max_len, encoder_outs.shape[1])).to(self.device)
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
             out, (hidden,cell) = self.decoder_layer(self.embedding_output(vec_in), (hidden, cell))
 
             # avec attention
-            attention_out, attention_weigths = self.attentionModule(out, encoder_outs)
+            attention_out, weigths = self.attentionModule(out, encoder_outs)
             vec_in = torch.cat((out, attention_out), dim=2)
             vec_in = self.fc1(vec_in)
             vec_out[:, i] = vec_in[:, 0]
+            attention_weigths[:, i] = weigths[:, 0]
 
             # vec_in = torch.argmax(vec_in, dim=2)
 

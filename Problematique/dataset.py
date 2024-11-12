@@ -132,6 +132,7 @@ class HandwrittenWords(Dataset):
         # self.standardize_data()
         # self.norm_data()
         self.difference_point()
+        self.angles = [np.arctan2(self.speed[i][1], self.speed[i][0]) for i in range(len(self.speed))]
 
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
@@ -142,6 +143,7 @@ class HandwrittenWords(Dataset):
             ])
             for element in self.values
         ]
+
         self.speed = [
             np.array([
                 [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
@@ -150,9 +152,18 @@ class HandwrittenWords(Dataset):
             for element in self.speed
         ]
 
+        # Padding pour les angles
+        self.angles = [np.append(element, np.zeros(self.max_sequence_len - len(element))) for element in self.angles]
+        # self.angles = [np.expand_dims(element, axis=0) for element in self.angles]
 
-        # Transformer les données en 4880, 4, 457 => self.values + self.speed
-        self.values = [np.array([self.values[i], self.speed[i]]) for i in range(len(self.values))]
+        self.values_x = [element[0] for element in self.values]
+        self.values_y = [element[1] for element in self.values]
+
+        self.speed_x = [element[0] for element in self.speed]
+        self.speed_y = [element[1] for element in self.speed]
+
+        # Transformer les données en 4880, 4, 457 => self.values + self.speed + self.angles
+        self.values =  np.stack([self.values_x, self.values_y, self.speed_x, self.speed_y, self.angles], axis=1)
 
         self.data = list(zip(self.keys, self.values))
 
@@ -163,7 +174,7 @@ class HandwrittenWords(Dataset):
         key = self.keys[idx]
         key = [self.symbol_to_int[i] for i in key]
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 4), torch.tensor(key, dtype=torch.long)
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 5), torch.tensor(key, dtype=torch.long)
 
 
     def visualisation(self, idx):
@@ -182,7 +193,7 @@ class HandwrittenWords(Dataset):
         if pad:
             mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
-        return ''.join(mot)
+        return mot
 
     def int_to_string(self, int_list, pad=True):
         # Convertir une liste d'entiers en string
@@ -192,7 +203,7 @@ class HandwrittenWords(Dataset):
         if pad:
             mot = [i for i in mot if i not in [self.start_symbol, self.stop_symbol, self.pad_symbol]]
 
-        return ''.join(mot)
+        return mot
 
     def standardize_data(self):
         """
