@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = args.force_cpu
-    training = 0
-    test = 1
+    training = 1
+    test = 0
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
     seed = 1
@@ -54,7 +54,7 @@ if __name__ == '__main__':
         np.random.seed(seed)
 
     # Choix du device
-    device = torch.device("cuda" if torch.cuda.is_available() and force_cpu else "cpu")
+    device = torch.device("cpu") #torch.device("cuda" if torch.cuda.is_available() and force_cpu else "cpu")
 
     dataset = HandwrittenWords('data_trainval.p')
     # Séparation du dataset (entraînement et validation)
