@@ -28,9 +28,9 @@ class trajectory2seq(nn.Module):
         self.start_symbol = '<sos>'
         self.stop_symbol = '<eos>'
         self.device = device
-        self.teaching_forcing_ratio = 0.6
+        self.teaching_forcing_ratio = 0.5
         # Définition des couches du rnn
-        self.encoder_layer = nn.LSTM(2, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
+        self.encoder_layer = nn.LSTM(4, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
         self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64, dropout=0.2)
         self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
@@ -43,10 +43,10 @@ class trajectory2seq(nn.Module):
 
         self.to(device)
 
-    def encoder(self, x):
+    def encoder(self, x, mask):
 
-        # longueur_sequence = mask.sum(dim=1)
-        # packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
+        longueur_sequence = mask.sum(dim=1)
+        packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
 
         # Encodeur
         out, (hn, c) = self.encoder_layer(x)
@@ -99,10 +99,9 @@ class trajectory2seq(nn.Module):
 
         return vec_out, hidden, attention_weigths
 
-    def forward(self, x, target):
+    def forward(self, x, target, mask):
         # Passe avant
-        out, h, cell = self.encoder(x)
+        out, h, cell = self.encoder(x, mask)
 
         out, hidden, attn = self.decoderWithAttn(out, h, cell, target)
         return out, h, attn
-

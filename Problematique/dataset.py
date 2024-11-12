@@ -130,8 +130,8 @@ class HandwrittenWords(Dataset):
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
         # self.standardize_data()
-        self.norm_data()
-        # self.norm_speed()
+        # self.norm_data()
+        self.difference_point()
 
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
@@ -142,16 +142,17 @@ class HandwrittenWords(Dataset):
             ])
             for element in self.values
         ]
-        # self.speed = [
-        #     np.array([
-        #         [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
-        #         [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
-        #     ])
-        #     for element in self.speed
-        # ]
+        self.speed = [
+            np.array([
+                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
+                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
+            ])
+            for element in self.speed
+        ]
+
 
         # Transformer les données en 4880, 4, 457 => self.values + self.speed
-        # self.values = [np.array([self.values[i], self.speed[i]]) for i in range(len(self.values))]
+        self.values = [np.array([self.values[i], self.speed[i]]) for i in range(len(self.values))]
 
         self.data = list(zip(self.keys, self.values))
 
@@ -162,7 +163,7 @@ class HandwrittenWords(Dataset):
         key = self.keys[idx]
         key = [self.symbol_to_int[i] for i in key]
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 2), torch.tensor(key, dtype=torch.long)
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 4), torch.tensor(key, dtype=torch.long)
 
 
     def visualisation(self, idx):
@@ -223,9 +224,13 @@ class HandwrittenWords(Dataset):
         """
         La fonction va calculer la différence entre les points
         """
+
+        # self.speed un array comme self.values
+        self.speed = [ [np.zeros(len(word[0])), np.zeros(len(word[1]))] for word in self.values]
+
         for i in range(len(self.values)):
-            self.values[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
-            self.values[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
+            self.speed[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
+            self.speed[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
 
 
 if __name__ == "__main__":

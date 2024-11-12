@@ -34,7 +34,7 @@ if __name__ == '__main__':
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
     seed = 1
-    n_workers = 4
+    n_workers = 8
     batch_size = args.n_batches
     train_val_split = .8
     trainval_test_split = .9
@@ -87,7 +87,7 @@ if __name__ == '__main__':
             fig, ax = plt.subplots(2, 1)
 
         # Ignore les symboles de padding
-        criterion = nn.CrossEntropyLoss()#ignore_index=dataset.symbol_to_int['<pad>'])
+        criterion = nn.CrossEntropyLoss(ignore_index=dataset.symbol_to_int['<pad>'])
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         for epoch in range(1, n_epochs + 1):
@@ -104,7 +104,11 @@ if __name__ == '__main__':
                 target = target.to(device)
 
                 optimizer.zero_grad()
-                output, hidden, attn = model(data, target)
+
+                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+                padding_mask = ~padding_mask
+
+                output, hidden, attn = model(data, target, padding_mask)
 
                 # Calcul de la loss
                 # target_cross_entropy = torch.argmax(target, dim=-1).long()
@@ -136,7 +140,10 @@ if __name__ == '__main__':
                 data = data.to(device)
                 target = target.to(device)
 
-                output, hidden, attn = model(data, target)
+                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+                padding_mask = ~padding_mask
+
+                output, hidden, attn = model(data, target, padding_mask)
                 loss_val = criterion(output.reshape(-1, dataset.num_character), target.reshape(-1))
                 running_loss_val += loss_val.item()
 
@@ -171,7 +178,9 @@ if __name__ == '__main__':
         for data, target in dataload_test:
             data = data.to(device)
             target = target.to(device)
-            output, hidden, attn = model(data, target)
+            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+            padding_mask = ~padding_mask
+            output, hidden, attn = model(data, target, padding_mask)
             output_list = torch.argmax(output, dim=-1).detach().cpu()
             output_list = torch.nn.functional.one_hot(output_list,
                                                       num_classes=dataset.num_character).detach().cpu().numpy()
