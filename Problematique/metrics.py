@@ -2,7 +2,6 @@
 # Auteur: Jean-Samuel Lauzon et  Jonathan Vincent
 # Hivers 2021
 import numpy as np
-from sklearn.metrics import confusion_matrix as cm
 
 def edit_distance(x,y):
     # Calcul de la distance d'édition
@@ -21,11 +20,7 @@ def edit_distance(x,y):
 
     return int(matrice_a[len(x)][len(y)])
 
-def confusion_matrix(true, pred, ignore=[]):
-    # Calcul de la matrice de confusion
-    if len(ignore) > 0:
-        confusion = cm(true, pred, labels=ignore)
-    else:
-        confusion = cm(true, pred)
-
-    return confusion
+def confusion_matrix_update(matrix, true, pred):
+    for idx1, idx2 in zip(true, pred):
+        if 0 <= idx1 < 29 and 0 <= idx2 < 29:
+            matrix[idx1, idx2] += 1
