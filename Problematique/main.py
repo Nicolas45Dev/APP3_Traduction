@@ -44,7 +44,7 @@ if __name__ == '__main__':
     train_val_split = .8
     trainval_test_split = .9
     gen_test_images = False
-    display_attention = False
+    display_attention = True
 
     # ---------------- Fin Paramètres et hyperparamètres ----------------#
 
@@ -172,11 +172,9 @@ if __name__ == '__main__':
 
     if test:
         # Évaluation
-        # À compléter
         model = torch.load('model.pt')
         model.eval()
         # Charger les données de tests
-        # À compléter
         # Pour la validation
         # dataset_test = HandwrittenWords('data_test.p')
         dataload_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=n_workers)
@@ -197,13 +195,13 @@ if __name__ == '__main__':
             pred_labels = output_list.flatten()
             metrics.confusion_matrix_update(confusion_matrix, target_labels, pred_labels)
 
-        # if display_attention:
-        #     attn = attn.detach().cpu().numpy()
-        #     plt.figure()
-        #     plt.imshow(attn[0])
-        #     plt.xticks(np.arange(0, 32, 1))
-        #     plt.yticks(np.arange(0, 32, 1))
-        #     plt.show()
+        if display_attention:
+            attn = attn.detach().cpu().numpy()
+            plt.figure()
+            plt.imshow(attn[1], cmap='Blues', aspect=15)
+            # plt.xticks(np.arange(0, 6, 1))
+            # plt.yticks(np.arange(0, 6, 1))
+            plt.show()
             # LABO 2
             # attn = attn.detach().cpu()[0, :, :]
             # plt.figure()
@@ -236,6 +234,7 @@ if __name__ == '__main__':
 
         
         # Affichage de la matrice de confusion
+        # conf_matrix = np.sum(confusion_matrix_array, dtype=np.int64, axis=0)
         plt.figure(figsize=(10, 7))
         sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', cbar=True, xticklabels=dataset.int_to_string(np.arange(29), pad=False), yticklabels=dataset.int_to_string(np.arange(29), pad=False))
         plt.xlabel('Prediction')
