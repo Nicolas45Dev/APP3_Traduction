@@ -7,8 +7,6 @@ from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import pickle
 
-from triton.language import float64
-
 MAX_LEN = 5 + 1
 
 class HandwrittenWords(Dataset):
@@ -137,48 +135,61 @@ class HandwrittenWords(Dataset):
             self.values[i][0] = [self.values[i][0][j] - self.first_point_x[i] for j in range(len(self.values[i][0]))]
             self.values[i][1] = [self.values[i][1][j] - self.first_point_y[i] for j in range(len(self.values[i][1]))]
 
-        self.norm_data()
+        # self.norm_data()
+        # self.standardize_data()
         self.difference_point()
-        self.second_derivative()
+        # self.second_derivative()
 
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
-        self.values = [
-            np.array([
-                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
-                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
-            ])
-            for element in self.values
-        ]
 
-        self.speed = [
-            np.array([
-                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
-                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
-            ])
-            for element in self.speed
-        ]
+        padded_values = []
 
-        self.acceleration = [
-            np.array([
-                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
-                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
-            ])
-            for element in self.acceleration
-        ]
+        for sequence in self.values:
+            # Taille actuelle de la séquence
+            current_len = sequence.shape[1]
 
-        self.values_x = [element[0] for element in self.values]
-        self.values_y = [element[1] for element in self.values]
+            # Calculer le padding nécessaire
+            if current_len < self.max_sequence_len:
+                # Pad avec des zéros pour atteindre la longueur maximale
+                padding_size = self.max_sequence_len - current_len
+                # Créer le padding avec numpy de taille (2, padding_size)
+                padding = np.zeros((2, padding_size))
+                # Concaténer la séquence originale avec le padding
+                padded_sequence = np.concatenate((sequence, padding), axis=1)
+            else:
+                # Si la séquence est déjà de la taille max, on la tronque
+                padded_sequence = sequence[:, :self.max_sequence_len]
 
-        self.speed_x = [element[0] for element in self.speed]
-        self.speed_y = [element[1] for element in self.speed]
+            padded_values.append(padded_sequence)
 
-        self.acceleration_x = [element[0] for element in self.acceleration]
-        self.acceleration_y = [element[1] for element in self.acceleration]
+        # Convertir en tensor PyTorch de taille (4880, 2, self.max_sequence_len)
+        padded_values_tensor = torch.tensor(np.array(padded_values), dtype=torch.float32)
 
-        # Transformer les données en 4880, 4, 457 => self.values + self.speed + self.angles
-        # self.values =  np.stack([self.values_x, self.values_y, self.speed_x, self.speed_y, self.acceleration_x, self.acceleration_y], axis=1)
-        self.values = np.array(list(zip(self.values, self.speed, self.acceleration)))
+        padded_speed = []
+
+        for sequence in self.speed:
+            # Taille actuelle de la séquence
+            current_len = sequence.shape[1]
+
+            # Calculer le padding nécessaire
+            if current_len < self.max_sequence_len:
+                # Pad avec des zéros pour atteindre la longueur maximale
+                padding_size = self.max_sequence_len - current_len
+                # Créer le padding avec numpy de taille (2, padding_size)
+                padding = np.zeros((2, padding_size))
+                # Concaténer la séquence originale avec le padding
+                padded_sequence = np.concatenate((sequence, padding), axis=1)
+            else:
+                # Si la séquence est déjà de la taille max, on la tronque
+                padded_sequence = sequence[:, :self.max_sequence_len]
+
+            padded_speed.append(padded_sequence)
+
+        # Convertir en tensor PyTorch de taille (4880, 2, self.max_sequence_len)
+        padded_speed_tensor = torch.tensor(np.array(padded_speed), dtype=torch.float32)
+
+        self.values = torch.stack([padded_values_tensor, padded_speed_tensor], dim=1)
 
         self.data = list(zip(self.keys, self.values))
 
@@ -188,8 +199,12 @@ class HandwrittenWords(Dataset):
     def __getitem__(self, idx):
         key = self.keys[idx]
         key = [self.symbol_to_int[i] for i in key]
+
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 6), torch.tensor(key, dtype=torch.long)
+        values_tensor = torch.as_tensor(self.values[idx], dtype=torch.float64).clone().detach()
+        key_tensor = torch.as_tensor(key, dtype=torch.long)
+
+        return values_tensor.view(-1, 4), key_tensor
 
 
     def visualisation(self, idx):
@@ -197,7 +212,7 @@ class HandwrittenWords(Dataset):
         fig = plt.figure()
         plt.title(self.keys[idx])
         plt.scatter(self.data[idx][1][0][0], self.data[idx][1][0][1])
-        plt.scatter(self.data[idx][1][1][0], self.data[idx][1][1][1])
+        # plt.scatter(self.data[idx][1][1][0], self.data[idx][1][1][1])
         plt.show()
 
     def onehot_to_string(self, onehot, pad=True):
@@ -252,24 +267,17 @@ class HandwrittenWords(Dataset):
         """
 
         # self.speed un array comme self.values
-        self.speed = [ [np.zeros(len(word[0])), np.zeros(len(word[1]))] for word in self.values]
+        self.speed = [ np.array([np.zeros(len(word[0])), np.zeros(len(word[1]))]) for word in self.values]
 
         for i in range(len(self.values)):
             self.speed[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
             self.speed[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
 
 
-    def second_derivative(self):
-        self.acceleration = [ [np.zeros(len(word[0])), np.zeros(len(word[1]))] for word in self.speed]
-
-        for i in range(len(self.values)):
-            self.acceleration[i][0] = np.append(np.diff(self.speed[i][0]), np.zeros(1))
-            self.acceleration[i][1] = np.append(np.diff(self.speed[i][1]), np.zeros(1))
-
 
 if __name__ == "__main__":
     # Code de test pour aider à compléter le dataset
-    a = HandwrittenWords('data_trainval.p')
+    a = HandwrittenWords('data_test.p')
     item = a.__getitem__(1)
 
     for i in range(4):

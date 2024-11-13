@@ -31,9 +31,9 @@ class trajectory2seq(nn.Module):
         self.device = device
         self.teaching_forcing_ratio = 0.6
         # Définition des couches du rnn
-        self.encoder_layer = nn.LSTM(6, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
-        self.decoder_layer = nn.LSTM(1, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64, dropout=0.2)
-        # self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
+        self.encoder_layer = nn.LSTM(4, n_hidden, n_layers, batch_first=True, dtype=torch.float64, bidirectional=True, dropout=0.2)
+        self.decoder_layer = nn.LSTM(n_hidden, n_hidden, 2 * n_layers, batch_first=True, dtype=torch.float64, dropout=0.2)
+        self.embedding_output = nn.Embedding(29, n_hidden, dtype=torch.float64)
 
         self.hidden2query = nn.Linear(n_hidden, n_hidden, dtype=torch.float64)
         self.encoder2value = nn.Linear(29, n_hidden, dtype=torch.float64)
@@ -46,8 +46,8 @@ class trajectory2seq(nn.Module):
 
     def encoder(self, x, mask):
 
-        longueur_sequence = mask.sum(dim=1)
-        packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
+        # longueur_sequence = mask.sum(dim=1)
+        # packed_input = pack_padded_sequence(x, longueur_sequence.cpu(), batch_first=True, enforce_sorted=False)
 
         # Encodeur
         out, (hn, c) = self.encoder_layer(x)
@@ -63,9 +63,12 @@ class trajectory2seq(nn.Module):
         query = self.hidden2query(query)
         values = self.encoder2value(values)
 
+        query = torch.nn.functional.layer_norm(query, normalized_shape=query.shape[1:])
+        values = torch.nn.functional.layer_norm(values, normalized_shape=values.shape[1:])
+
         # Attention
         similarity = torch.bmm(query, values.transpose(1, 2))
-        attention_weights = torch.nn.functional.softmax(similarity, dim=2)
+        attention_weights = torch.nn.functional.softmax(similarity, dim=-1)
         attention_output = torch.bmm(attention_weights, values)
 
         return attention_output, attention_weights
@@ -76,13 +79,13 @@ class trajectory2seq(nn.Module):
         max_len = self.max_len # Longueur max de la séquence anglaise (avec padding)
         batch_size = hidden.shape[1]  # Taille de la batch
 
-        vec_in = torch.full((batch_size, 1), fill_value = self.symbol_to_int[self.start_symbol], dtype=torch.float64).to(self.device)
+        vec_in = torch.full((batch_size, 1), fill_value = self.symbol_to_int[self.start_symbol]).to(self.device)
         vec_out = torch.zeros((batch_size, max_len, 29)).to(self.device)  # Vecteur de sortie du décodage
         attention_weigths = torch.zeros((batch_size, max_len, encoder_outs.shape[1])).to(self.device)
 
         # Boucle pour tous les symboles de sortie
         for i in range(max_len):
-            out, (hidden,cell) = self.decoder_layer(vec_in.unsqueeze(1), (hidden, cell))
+            out, (hidden,cell) = self.decoder_layer(self.embedding_output(vec_in), (hidden, cell))
 
             # avec attention
             attention_out, weigths = self.attentionModule(out, encoder_outs)
@@ -94,9 +97,9 @@ class trajectory2seq(nn.Module):
             # Teaching forcing
             rand_val = torch.rand(1, device=self.device).item()
             if rand_val < self.teaching_forcing_ratio:
-                vec_in = target[:, i].unsqueeze(1).type(torch.float64)
+                vec_in = target[:, i].unsqueeze(1)
             else:
-                vec_in = torch.argmax(out, dim=2).type(torch.float64)
+                vec_in = torch.argmax(out, dim=2)
 
         return vec_out, hidden, attention_weigths
 

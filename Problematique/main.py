@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = args.force_cpu
-    training = 1
-    test = 0
+    training = 0
+    test = 1
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
     seed = 1
@@ -91,10 +91,11 @@ if __name__ == '__main__':
             train_dist = []
             train_loss = []
             val_loss = []
+            val_dist = []
             fig, ax = plt.subplots(2, 1)
 
         # Ignore les symboles de padding
-        criterion = nn.CrossEntropyLoss() # (ignore_index=dataset.symbol_to_int['<pad>'])
+        criterion = nn.CrossEntropyLoss(ignore_index=dataset.symbol_to_int['<pad>'])
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         for epoch in range(1, n_epochs + 1):
@@ -103,6 +104,7 @@ if __name__ == '__main__':
 
             model.train()
             dist = 0.0
+            dist_val = 0.0
 
             for batch_idx, (data, target) in enumerate(dataload_train):
 
@@ -112,7 +114,7 @@ if __name__ == '__main__':
 
                 optimizer.zero_grad()
 
-                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
                 padding_mask = ~padding_mask
 
                 output, hidden, attn = model(data, target, padding_mask)
@@ -139,7 +141,7 @@ if __name__ == '__main__':
                     dist += edit_distance(mot_a, mot_b) / M
 
 
-            torch.save(model, 'Results/modelcpu6diem.pt')
+            torch.save(model, 'Results/modelSansPad.pt')
             # Validation
             model.eval()
 
@@ -147,25 +149,41 @@ if __name__ == '__main__':
                 data = data.to(device)
                 target = target.to(device)
 
-                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+                padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
                 padding_mask = ~padding_mask
 
                 output, hidden, attn = model(data, target, padding_mask)
                 loss_val = criterion(output.reshape(-1, dataset.num_character), target.reshape(-1))
                 running_loss_val += loss_val.item()
 
-            print(f'\rEpoch {epoch} - Average Loss: {running_loss / len(dataload_train):.4f} - Average Edit Distance: {dist / len(dataload_train):.4f}')
+                # Calcul de la distance d'édition
+                output_list = torch.argmax(output, dim=-1).detach().cpu()
+                # output_list = dataset.int_to_onehot(output_list)
+                output_list = torch.nn.functional.one_hot(output_list, num_classes=dataset.num_character).detach().cpu().numpy()
+                target_list = target.detach().cpu().numpy()
+                M = len(output_list)
+                for i in range(M):
+                    a = output_list[i]
+                    b = target_list[i]
+                    mot_a = dataset.onehot_to_string(a)
+                    mot_b = dataset.int_to_string(b)
+                    dist_val += edit_distance(mot_a, mot_b) / M
+
+            print(f'\rEpoch {epoch} - Average Loss: {running_loss / len(dataload_train):.4f} - Average Edit Distance train: {dist / len(dataload_train):.4f} - Average Edit Distance val: {dist_val / len(dataload_val):.4f}')
 
             if True:
                 train_loss.append(running_loss / len(dataload_train))
                 val_loss.append(running_loss_val / len(dataload_val))
                 train_dist.append(dist / len(dataload_train))
+                val_dist.append(dist_val / len(dataload_val))
                 ax[0].plot(train_loss)
                 ax[0].plot(val_loss)
                 ax[0].set_title('Loss')
                 ax[0].legend(['Train', 'Validation'])
                 ax[1].plot(train_dist)
+                ax[1].plot(val_dist)
                 ax[1].set_title('Edit Distance')
+                ax[1].legend(['Train', 'Validation'])
                 plt.draw()
 
         if True:
@@ -174,7 +192,7 @@ if __name__ == '__main__':
 
     if test:
         # Évaluation
-        model = torch.load('Results/model6diem.pt')
+        model = torch.load('Results/modelSansPad.pt')
         model.eval()
         dist_test = 0.0
         # Charger les données de tests
@@ -186,7 +204,7 @@ if __name__ == '__main__':
             data = data.to(device)
             target = target.to(device)
 
-            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
             padding_mask = ~padding_mask
 
             output, hidden, attn = model(data, target, padding_mask)
@@ -209,7 +227,7 @@ if __name__ == '__main__':
             data = output.unsqueeze(0).to(device)
             target = target.unsqueeze(0).to(device)
 
-            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0)
+            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
             padding_mask = ~padding_mask
 
             output, hidden, attn = model(data, target, padding_mask)
@@ -219,8 +237,8 @@ if __name__ == '__main__':
             target_list = target.detach().cpu().numpy()
 
             if display_attention:
-                x_points = data[0, :, 0].detach().cpu().numpy()  # Points x (1ère séquence de batch)
-                y_points = data[0, :, 1].detach().cpu().numpy()  # Points y
+                x_points = data.view(data.shape[-1], -1) # data[0, :, 1].detach().cpu().numpy()  # Points x (1ère séquence de batch)
+                y_points = data[0, :, 0].detach().cpu().numpy()  # Points y
 
                 # Taille de la séquence (nombre de points)
                 seq_len = x_points.shape[0]
@@ -229,10 +247,10 @@ if __name__ == '__main__':
                 attn = attn.detach().cpu().numpy()[0, :, :]  # Prendre la première séquence du batch
 
                 # Créer une figure
-                plt.figure(figsize=(10, 6))
+                plt.figure()
 
                 # Afficher les points manuscrits
-                plt.scatter(x_points, y_points, c='blue', label='Tracé manuscrit', s=10)
+                plt.scatter(x_points, y_points, c='blue', label='Tracé manuscrit')
 
                 # Affichage des poids d'attention sous forme de heatmap
                 # Normaliser la taille de la heatmap pour correspondre à la taille de l'image des points
@@ -241,13 +259,13 @@ if __name__ == '__main__':
                     attention_map[i, :attn.shape[1]] = attn[i]
 
                 # Afficher les poids d'attention comme heatmap sur les points
-                plt.imshow(attention_map.T, cmap='hot', origin='lower', alpha=0.5, extent=[0, 1, 0, 1])
+                # plt.imshow(attention_map.T, cmap='hot', origin='lower', alpha=0.5, extent=[0, 1, 0, 1])
 
-                plt.colorbar(label='Poids d\'attention')
+                # plt.colorbar(label='Poids d\'attention')
                 plt.xlabel('Position x')
                 plt.ylabel('Position y')
                 plt.title('Poids d\'Attention sur le Tracé Manuscrit')
-                plt.legend()
+                # plt.legend()
                 plt.show()
 
             mot_a = "".join(dataset.onehot_to_string(output_one_hot[0], pad=False))
