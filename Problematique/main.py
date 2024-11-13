@@ -54,16 +54,18 @@ if __name__ == '__main__':
         np.random.seed(seed)
 
     # Choix du device
-    device = torch.device("cpu") #torch.device("cuda" if torch.cuda.is_available() and force_cpu else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() and force_cpu else "cpu")
 
     dataset = HandwrittenWords('data_trainval.p')
+    dataset_test = HandwrittenWords('data_test.p')
+
     # Séparation du dataset (entraînement et validation)
     n_trainval_samp = int(len(dataset) * trainval_test_split)
     n_test_samp = len(dataset) - n_trainval_samp
-    dataset_trainVal, dataset_test = torch.utils.data.random_split(dataset, [n_trainval_samp, n_test_samp])
-    n_train_samp = int(len(dataset_trainVal) * train_val_split)
-    n_val_samp = len(dataset_trainVal) - n_train_samp
-    dataset_train, dataset_val = torch.utils.data.random_split(dataset_trainVal, [n_train_samp, n_val_samp])
+    # dataset_trainVal = torch.utils.data.random_split(dataset, [n_trainval_samp])
+    n_train_samp = int(len(dataset) * train_val_split)
+    n_val_samp = len(dataset) - n_train_samp
+    dataset_train, dataset_val = torch.utils.data.random_split(dataset, [n_train_samp, n_val_samp])
 
     # Instanciation des dataloaders
     dataload_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=n_workers)
@@ -92,7 +94,7 @@ if __name__ == '__main__':
             fig, ax = plt.subplots(2, 1)
 
         # Ignore les symboles de padding
-        criterion = nn.CrossEntropyLoss(ignore_index=dataset.symbol_to_int['<pad>'])
+        criterion = nn.CrossEntropyLoss() # (ignore_index=dataset.symbol_to_int['<pad>'])
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         for epoch in range(1, n_epochs + 1):
@@ -137,7 +139,7 @@ if __name__ == '__main__':
                     dist += edit_distance(mot_a, mot_b) / M
 
 
-            torch.save(model, 'model.pt')
+            torch.save(model, 'Results/modelcpu6diem.pt')
             # Validation
             model.eval()
 
@@ -172,8 +174,9 @@ if __name__ == '__main__':
 
     if test:
         # Évaluation
-        model = torch.load('model.pt')
+        model = torch.load('Results/model6diem.pt')
         model.eval()
+        dist_test = 0.0
         # Charger les données de tests
         # Pour la validation
         # dataset_test = HandwrittenWords('data_test.p')
@@ -190,25 +193,14 @@ if __name__ == '__main__':
             output_list = torch.argmax(output, dim=-1).detach().cpu()
             output_one_hot = torch.nn.functional.one_hot(output_list,
                                                       num_classes=dataset.num_character).detach().cpu().numpy()
+
+            # Calcul de la distance d'édition
             target_list = target.detach().cpu().numpy()
+
             target_labels = target_list.flatten()
             pred_labels = output_list.flatten()
             metrics.confusion_matrix_update(confusion_matrix, target_labels, pred_labels)
 
-        if display_attention:
-            attn = attn.detach().cpu().numpy()
-            plt.figure()
-            plt.imshow(attn[1], cmap='Blues', aspect=15)
-            # plt.xticks(np.arange(0, 6, 1))
-            # plt.yticks(np.arange(0, 6, 1))
-            plt.show()
-            # LABO 2
-            # attn = attn.detach().cpu()[0, :, :]
-            # plt.figure()
-            # plt.imshow(attn[0:len(in_seq), 0:len(out_seq)], origin='lower', vmax=1, vmin=0, cmap='pink')
-            # plt.xticks(np.arange(len(out_seq)), out_seq, rotation=45)
-            # plt.yticks(np.arange(len(in_seq)), in_seq)
-            # plt.show()
 
         # Affichage des résultats de test
         for i in range(10):
@@ -226,11 +218,46 @@ if __name__ == '__main__':
 
             target_list = target.detach().cpu().numpy()
 
+            if display_attention:
+                x_points = data[0, :, 0].detach().cpu().numpy()  # Points x (1ère séquence de batch)
+                y_points = data[0, :, 1].detach().cpu().numpy()  # Points y
+
+                # Taille de la séquence (nombre de points)
+                seq_len = x_points.shape[0]
+
+                # Extraire les poids d'attention (de taille 7, 457)
+                attn = attn.detach().cpu().numpy()[0, :, :]  # Prendre la première séquence du batch
+
+                # Créer une figure
+                plt.figure(figsize=(10, 6))
+
+                # Afficher les points manuscrits
+                plt.scatter(x_points, y_points, c='blue', label='Tracé manuscrit', s=10)
+
+                # Affichage des poids d'attention sous forme de heatmap
+                # Normaliser la taille de la heatmap pour correspondre à la taille de l'image des points
+                attention_map = np.zeros((seq_len, seq_len))
+                for i in range(attn.shape[0]):  # Pour chaque timestep dans le décodeur
+                    attention_map[i, :attn.shape[1]] = attn[i]
+
+                # Afficher les poids d'attention comme heatmap sur les points
+                plt.imshow(attention_map.T, cmap='hot', origin='lower', alpha=0.5, extent=[0, 1, 0, 1])
+
+                plt.colorbar(label='Poids d\'attention')
+                plt.xlabel('Position x')
+                plt.ylabel('Position y')
+                plt.title('Poids d\'Attention sur le Tracé Manuscrit')
+                plt.legend()
+                plt.show()
+
             mot_a = "".join(dataset.onehot_to_string(output_one_hot[0], pad=False))
             mot_b = "".join(dataset.int_to_string(target_list[0], pad=False))
             print('Output: ', mot_a)
             print('Target: ', mot_b)
             print("")
+            dist_test += edit_distance(mot_a, mot_b) / 10
+
+        print(f'Average Edit Distance: {dist_test:.4f}')
 
         
         # Affichage de la matrice de confusion

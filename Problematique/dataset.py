@@ -129,10 +129,17 @@ class HandwrittenWords(Dataset):
 
         self.max_sequence_len = max([len(point[1]) for point in self.values])
 
-        # self.standardize_data()
-        # self.norm_data()
+        # Soustraire le premier point de chaque séquence
+        self.first_point_x = [point[0][0] for point in self.values]
+        self.first_point_y = [point[0][1] for point in self.values]
+
+        for i in range(len(self.values)):
+            self.values[i][0] = [self.values[i][0][j] - self.first_point_x[i] for j in range(len(self.values[i][0]))]
+            self.values[i][1] = [self.values[i][1][j] - self.first_point_y[i] for j in range(len(self.values[i][1]))]
+
+        self.norm_data()
         self.difference_point()
-        self.angles = [np.arctan2(self.speed[i][1], self.speed[i][0]) for i in range(len(self.speed))]
+        self.second_derivative()
 
         # Ajout du padding aux séquences
         self.keys = [[self.start_symbol] + word + [self.stop_symbol] + [self.pad_symbol] * (MAX_LEN - len(word) - 1) for word in self.keys]
@@ -152,9 +159,13 @@ class HandwrittenWords(Dataset):
             for element in self.speed
         ]
 
-        # Padding pour les angles
-        self.angles = [np.append(element, np.zeros(self.max_sequence_len - len(element))) for element in self.angles]
-        # self.angles = [np.expand_dims(element, axis=0) for element in self.angles]
+        self.acceleration = [
+            np.array([
+                [element[0][j] if j < len(element[0]) else 0 for j in range(self.max_sequence_len)],
+                [element[1][j] if j < len(element[1]) else 0 for j in range(self.max_sequence_len)]
+            ])
+            for element in self.acceleration
+        ]
 
         self.values_x = [element[0] for element in self.values]
         self.values_y = [element[1] for element in self.values]
@@ -162,8 +173,12 @@ class HandwrittenWords(Dataset):
         self.speed_x = [element[0] for element in self.speed]
         self.speed_y = [element[1] for element in self.speed]
 
+        self.acceleration_x = [element[0] for element in self.acceleration]
+        self.acceleration_y = [element[1] for element in self.acceleration]
+
         # Transformer les données en 4880, 4, 457 => self.values + self.speed + self.angles
-        self.values =  np.stack([self.values_x, self.values_y, self.speed_x, self.speed_y, self.angles], axis=1)
+        # self.values =  np.stack([self.values_x, self.values_y, self.speed_x, self.speed_y, self.acceleration_x, self.acceleration_y], axis=1)
+        self.values = np.array(list(zip(self.values, self.speed, self.acceleration)))
 
         self.data = list(zip(self.keys, self.values))
 
@@ -174,7 +189,7 @@ class HandwrittenWords(Dataset):
         key = self.keys[idx]
         key = [self.symbol_to_int[i] for i in key]
         # Aplatir la liste des valeurs
-        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 5), torch.tensor(key, dtype=torch.long)
+        return torch.tensor(self.values[idx], dtype=torch.float64).view(-1, 6), torch.tensor(key, dtype=torch.long)
 
 
     def visualisation(self, idx):
@@ -242,6 +257,14 @@ class HandwrittenWords(Dataset):
         for i in range(len(self.values)):
             self.speed[i][0] = np.append(np.diff(self.values[i][0]), np.zeros(1))
             self.speed[i][1] = np.append(np.diff(self.values[i][1]), np.zeros(1))
+
+
+    def second_derivative(self):
+        self.acceleration = [ [np.zeros(len(word[0])), np.zeros(len(word[1]))] for word in self.speed]
+
+        for i in range(len(self.values)):
+            self.acceleration[i][0] = np.append(np.diff(self.speed[i][0]), np.zeros(1))
+            self.acceleration[i][1] = np.append(np.diff(self.speed[i][1]), np.zeros(1))
 
 
 if __name__ == "__main__":
