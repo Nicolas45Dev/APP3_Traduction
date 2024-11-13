@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = args.force_cpu
-    training = 0
+    training = 1
     test = 1
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
