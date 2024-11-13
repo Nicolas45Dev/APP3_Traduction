@@ -129,7 +129,7 @@ class HandwrittenWords(Dataset):
 
         # Soustraire le premier point de chaque séquence
         self.first_point_x = [point[0][0] for point in self.values]
-        self.first_point_y = [point[0][1] for point in self.values]
+        self.first_point_y = [point[1][0] for point in self.values]
 
         for i in range(len(self.values)):
             self.values[i][0] = [self.values[i][0][j] - self.first_point_x[i] for j in range(len(self.values[i][0]))]
@@ -204,7 +204,7 @@ class HandwrittenWords(Dataset):
         values_tensor = torch.as_tensor(self.values[idx], dtype=torch.float64).clone().detach()
         key_tensor = torch.as_tensor(key, dtype=torch.long)
 
-        return values_tensor.view(-1, 4), key_tensor
+        return torch.reshape(values_tensor, (values_tensor.shape[-1], 4)), key_tensor
 
 
     def visualisation(self, idx):
