@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # ---------------- Paramètres et hyperparamètres ----------------#
     force_cpu = args.force_cpu
-    training = 1
+    training = 0
     test = 1
     learning_rate = args.learning_rate
     n_epochs = args.n_epochs
@@ -226,66 +226,62 @@ if __name__ == '__main__':
                 mot_a = "".join(dataset.onehot_to_string(a))
                 mot_b = "".join(dataset.int_to_string(b))
                 dist_test += edit_distance(mot_a, mot_b) / M
-        # # Affichage des résultats de test
-        # dataload_test = DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=n_workers)
-        # sample_indices = random.sample(range(len(dataload_test)), 10)
-        # # output, target = dataload_test[np.random.randint(0, len(dataload_test))]
-        #
-        # # Récupérer les éléments correspondants dans le dataset
-        # out = [dataload_test.dataset[i] for i in sample_indices]
-        # for data, target in out:
-        #     data = data.unsqueeze(0).to(device)
-        #     target = target.unsqueeze(0).to(device)
-        #
-        #     padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
-        #     padding_mask = ~padding_mask
-        #
-        #     output, hidden, attn = model(data, target, padding_mask)
-        #     output_list = torch.argmax(output, dim=-1).detach().cpu()
-        #     output_one_hot = torch.nn.functional.one_hot(output_list, num_classes=dataset.num_character).detach().cpu().numpy()
-        #
-        #     target_list = target.detach().cpu().numpy()
-        #
-        #     if display_attention:
-        #         data_no_device = data.detach().cpu()
-        #         x_points = data_no_device[0, :, 0] # data[0, :, 1].detach().cpu().numpy()  # Points x (1ère séquence de batch)
-        #         y_points = data_no_device[0, :, 1]  # Points y
-        #
-        #         # Taille de la séquence (nombre de points)
-        #         seq_len = x_points.shape[0]
-        #
-        #         # Extraire les poids d'attention (de taille 7, 457)
-        #         attn = attn.detach().cpu().numpy()[0, :, :]  # Prendre la première séquence du batch
-        #
-        #         # Créer une figure
-        #         plt.figure()
-        #
-        #         # Afficher les points manuscrits
-        #         plt.scatter(x_points, y_points, c='blue', label='Tracé manuscrit')
-        #
-        #         # Affichage des poids d'attention sous forme de heatmap
-        #         # Normaliser la taille de la heatmap pour correspondre à la taille de l'image des points
-        #         attention_map = np.zeros((seq_len, seq_len))
-        #         for i in range(attn.shape[0]):  # Pour chaque timestep dans le décodeur
-        #             attention_map[i, :attn.shape[1]] = attn[i]
-        #
-        #         # Afficher les poids d'attention comme heatmap sur les points
-        #         # plt.imshow(attention_map.T, cmap='hot', origin='lower', alpha=0.5, extent=[0, 1, 0, 1])
-        #
-        #         # plt.colorbar(label='Poids d\'attention')
-        #         plt.xlabel('Position x')
-        #         plt.ylabel('Position y')
-        #         plt.title('Poids d\'Attention sur le Tracé Manuscrit')
-        #         # plt.legend()
-        #         plt.show()
-        #
-        #         mot_a = "".join(dataset.onehot_to_string(output_one_hot[0], pad=False))
-        #         mot_b = "".join(dataset.int_to_string(target_list[0], pad=False))
-        #         print('Output: ', mot_a)
-        #         print('Target: ', mot_b)
-        #         print("")
-        #         dist_test += edit_distance(mot_a, mot_b) / 10
         print(f'Average Edit Distance: {dist_test / len(dataload_test):.4f}')
+
+        # Affichage des résultats de test
+        for i in range(10):
+            output, target = dataset_test[np.random.randint(0, len(dataset_test))]
+            data = output.unsqueeze(0).to(device)
+            target = target.unsqueeze(0).to(device)
+
+            padding_mask = (data[:, :, 0] == 0) & (data[:, :, 1] == 0) & (data[:, :, 2] == 0) & (data[:, :, 3] == 0)
+            padding_mask = ~padding_mask
+
+            output, hidden, attn = model(data, target, padding_mask)
+            output_list = torch.argmax(output, dim=-1).detach().cpu()
+            output_one_hot = torch.nn.functional.one_hot(output_list, num_classes=dataset.num_character).detach().cpu().numpy()
+
+            target_list = target.detach().cpu().numpy()
+            mot_a = "".join(dataset.onehot_to_string(output_one_hot[0], pad=False))
+            mot_b = "".join(dataset.int_to_string(target_list[0], pad=False))
+            print('Output: ', mot_a)
+            print('Target: ', mot_b)
+            print("")
+
+            if display_attention:
+                data_no_device = data.detach().cpu()
+                x_points = data_no_device[0, :, 0] # data[0, :, 1].detach().cpu().numpy()  # Points x (1ère séquence de batch)
+                y_points = data_no_device[0, :, 1]  # Points y
+
+                # Taille de la séquence (nombre de points)
+                seq_len = x_points.shape[0]
+
+                # Extraire les poids d'attention (de taille 7, 457)
+                attn = attn.detach().cpu().numpy()[0, :, :]  # Prendre la première séquence du batch
+
+                # Créer une figure
+                plt.figure()
+
+                # Afficher les points manuscrits
+                plt.scatter(x_points, y_points, c='blue', label='Tracé manuscrit')
+
+                # Affichage des poids d'attention sous forme de heatmap
+                # Normaliser la taille de la heatmap pour correspondre à la taille de l'image des points
+                attention_map = np.zeros((seq_len, seq_len))
+                for i in range(attn.shape[0]):  # Pour chaque timestep dans le décodeur
+                    attention_map[i, :attn.shape[1]] = attn[i]
+
+                # Afficher les poids d'attention comme heatmap sur les points
+                # plt.imshow(attention_map.T, cmap='hot', origin='lower', alpha=0.5, extent=[0, 1, 0, 1])
+
+                # plt.colorbar(label='Poids d\'attention')
+                plt.xlabel('Position x')
+                plt.ylabel('Position y')
+                plt.title('Poids d\'Attention sur le Tracé Manuscrit')
+                # plt.legend()
+                plt.show()
+
+
 
         
         # Affichage de la matrice de confusion

@@ -202,9 +202,10 @@ class HandwrittenWords(Dataset):
 
         # Aplatir la liste des valeurs
         values_tensor = torch.as_tensor(self.values[idx], dtype=torch.float64).clone().detach()
+        values_tensor = torch.stack((values_tensor[0][0], values_tensor[0][1], values_tensor[1][0], values_tensor[1][1])).T
         key_tensor = torch.as_tensor(key, dtype=torch.long)
 
-        return torch.reshape(values_tensor, (values_tensor.shape[-1], 4)), key_tensor
+        return values_tensor, key_tensor
 
 
     def visualisation(self, idx):
